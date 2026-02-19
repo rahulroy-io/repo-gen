@@ -1,4 +1,9 @@
 #!/usr/bin/env pwsh
+param(
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$CliArgs
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -57,7 +62,7 @@ Examples:
 }
 
 function Parse-Args {
-    param([string[]]$Args)
+    param([string[]]$InputArgs)
 
     $opts = [ordered]@{
         Command = 'plan'
@@ -76,13 +81,13 @@ function Parse-Args {
     }
 
     $i = 0
-    if ($Args.Length -gt 0 -and @('validate','plan','apply','help') -contains $Args[0]) {
-        $opts.Command = $Args[0]
+    if ($InputArgs.Length -gt 0 -and @('validate','plan','apply','help') -contains $InputArgs[0]) {
+        $opts.Command = $InputArgs[0]
         $i = 1
     }
 
-    while ($i -lt $Args.Length) {
-        $arg = $Args[$i]
+    while ($i -lt $InputArgs.Length) {
+        $arg = $InputArgs[$i]
         switch ($arg) {
             '--help' { $opts.Help = $true; $i++; continue }
             '-h' { $opts.Help = $true; $i++; continue }
@@ -92,21 +97,57 @@ function Parse-Args {
             '-f' { $opts.Force = $true; $i++; continue }
             '--allow-existing-root' { $opts.AllowExistingRoot = $true; $i++; continue }
             '--strict' { $opts.Strict = $true; $i++; continue }
-            '--spec' { $i++; if ($i -ge $Args.Length) { Exit-WithError '--spec requires a value.' 2 $opts.Format }; $opts.Spec = $Args[$i]; $i++; continue }
-            '-s' { $i++; if ($i -ge $Args.Length) { Exit-WithError '-s requires a value.' 2 $opts.Format }; $opts.Spec = $Args[$i]; $i++; continue }
-            '--output' { $i++; if ($i -ge $Args.Length) { Exit-WithError '--output requires a value.' 2 $opts.Format }; $opts.Output = $Args[$i]; $i++; continue }
-            '-o' { $i++; if ($i -ge $Args.Length) { Exit-WithError '-o requires a value.' 2 $opts.Format }; $opts.Output = $Args[$i]; $i++; continue }
-            '--format' { $i++; if ($i -ge $Args.Length) { Exit-WithError '--format requires a value.' 2 $opts.Format }; $opts.Format = $Args[$i]; $i++; continue }
-            '-v' { $i++; if ($i -ge $Args.Length) { Exit-WithError '-v requires a value.' 2 $opts.Format }; $opts.Format = $Args[$i]; $i++; continue }
-            '--on-conflict' { $i++; if ($i -ge $Args.Length) { Exit-WithError '--on-conflict requires a value.' 2 $opts.Format }; $opts.OnConflict = $Args[$i]; $i++; continue }
-            '--allow-path' { $i++; if ($i -ge $Args.Length) { Exit-WithError '--allow-path requires a value.' 2 $opts.Format }; $opts.AllowPath += $Args[$i]; $i++; continue }
-            '--plan-out' { $i++; if ($i -ge $Args.Length) { Exit-WithError '--plan-out requires a value.' 2 $opts.Format }; $opts.PlanOut = $Args[$i]; $i++; continue }
-            '--schema' { $i++; if ($i -ge $Args.Length) { Exit-WithError '--schema requires a value.' 2 $opts.Format }; $opts.Schema = $Args[$i]; $i++; continue }
+            '--spec' { $i++; if ($i -ge $InputArgs.Length) { Exit-WithError '--spec requires a value.' 2 $opts.Format }; $opts.Spec = $InputArgs[$i]; $i++; continue }
+            '-s' { $i++; if ($i -ge $InputArgs.Length) { Exit-WithError '-s requires a value.' 2 $opts.Format }; $opts.Spec = $InputArgs[$i]; $i++; continue }
+            '--output' { $i++; if ($i -ge $InputArgs.Length) { Exit-WithError '--output requires a value.' 2 $opts.Format }; $opts.Output = $InputArgs[$i]; $i++; continue }
+            '-o' { $i++; if ($i -ge $InputArgs.Length) { Exit-WithError '-o requires a value.' 2 $opts.Format }; $opts.Output = $InputArgs[$i]; $i++; continue }
+            '--format' { $i++; if ($i -ge $InputArgs.Length) { Exit-WithError '--format requires a value.' 2 $opts.Format }; $opts.Format = $InputArgs[$i]; $i++; continue }
+            '-v' { $i++; if ($i -ge $InputArgs.Length) { Exit-WithError '-v requires a value.' 2 $opts.Format }; $opts.Format = $InputArgs[$i]; $i++; continue }
+            '--on-conflict' { $i++; if ($i -ge $InputArgs.Length) { Exit-WithError '--on-conflict requires a value.' 2 $opts.Format }; $opts.OnConflict = $InputArgs[$i]; $i++; continue }
+            '--allow-path' { $i++; if ($i -ge $InputArgs.Length) { Exit-WithError '--allow-path requires a value.' 2 $opts.Format }; $opts.AllowPath += $InputArgs[$i]; $i++; continue }
+            '--plan-out' { $i++; if ($i -ge $InputArgs.Length) { Exit-WithError '--plan-out requires a value.' 2 $opts.Format }; $opts.PlanOut = $InputArgs[$i]; $i++; continue }
+            '--schema' { $i++; if ($i -ge $InputArgs.Length) { Exit-WithError '--schema requires a value.' 2 $opts.Format }; $opts.Schema = $InputArgs[$i]; $i++; continue }
             default { Exit-WithError "Unknown argument: $arg" 2 $opts.Format }
         }
     }
 
     return [pscustomobject]$opts
+}
+
+function Get-CLIArgs {
+    param(
+        [string[]]$ScriptArgs,
+        [object]$Invocation
+    )
+
+    $cliArgs = @($ScriptArgs)
+    if ($cliArgs.Count -gt 0) { return $cliArgs }
+
+    if ($Invocation -and $Invocation.UnboundArguments) {
+        $cliArgs = @($Invocation.UnboundArguments)
+        if ($cliArgs.Count -gt 0) { return $cliArgs }
+    }
+
+    $raw = [Environment]::GetCommandLineArgs()
+    if ($null -eq $raw -or $raw.Count -lt 2) { return @() }
+
+    $fileIndex = -1
+    for ($j = 0; $j -lt $raw.Count; $j++) {
+        if ($raw[$j] -ieq '-File' -or $raw[$j] -ieq '-f') {
+            $fileIndex = $j
+            break
+        }
+    }
+
+    if ($fileIndex -ge 0) {
+        $argsStart = $fileIndex + 2
+        if ($argsStart -lt $raw.Count) {
+            return @($raw[$argsStart..($raw.Count - 1)])
+        }
+        return @()
+    }
+
+    return @()
 }
 
 function Get-PropValue {
@@ -305,7 +346,8 @@ function Build-Plan {
         $destRel = $destRel.Substring(0, $destRel.Length - 5)
         $destRel = $destRel -replace '\\', '/'
 
-        $destFull = [IO.Path]::GetFullPath((Join-Path $fullOutputRoot ($destRel -replace '/', [IO.Path]::DirectorySeparatorChar)))
+        $normalizedDestRel = ($destRel -replace '/', [string][IO.Path]::DirectorySeparatorChar)
+        $destFull = [IO.Path]::GetFullPath((Join-Path $fullOutputRoot $normalizedDestRel))
         if (-not (Test-IsSubPath -Root $fullOutputRoot -Candidate $destFull)) {
             Exit-WithError "Illegal destination path outside output root: $destRel" 2
         }
@@ -320,7 +362,7 @@ function Build-Plan {
             }
         }
 
-        $dirRel = [IO.Path]::GetDirectoryName($destRel -replace '/', [IO.Path]::DirectorySeparatorChar)
+        $dirRel = [IO.Path]::GetDirectoryName(($destRel -replace '/', [string][IO.Path]::DirectorySeparatorChar))
         if (-not [string]::IsNullOrWhiteSpace($dirRel)) {
             $mkdirSet.Add(($dirRel -replace '\\', '/')) | Out-Null
         }
@@ -353,7 +395,7 @@ function Build-Plan {
         }
     }
 
-    $mkdir = @($mkdirSet.ToArray() | Sort-Object)
+    $mkdir = @($mkdirSet | Sort-Object)
     $writePlan = @($writeOps | ForEach-Object { [pscustomobject]@{ path = $_.path; template = $_.template } })
 
     return [pscustomobject]@{
@@ -418,7 +460,7 @@ function Apply-Plan {
     }
 
     foreach ($d in $Plan.mkdir) {
-        $dirPath = Join-Path $fullOutputRoot ($d -replace '/', [IO.Path]::DirectorySeparatorChar)
+        $dirPath = Join-Path $fullOutputRoot (($d -replace '/', [string][IO.Path]::DirectorySeparatorChar))
         New-Item -ItemType Directory -Path $dirPath -Force | Out-Null
     }
 
@@ -458,22 +500,23 @@ function Apply-Plan {
     $manifestDir = Join-Path $fullOutputRoot '.repogen'
     New-Item -ItemType Directory -Path $manifestDir -Force | Out-Null
 
-    $manifest = [pscustomobject]@{
-        specHash = Get-SpecHash -Path $SpecPath
-        toolVersion = $ToolVersion
-        generatedFiles = @($generated)
-        timestamp = [DateTimeOffset]::UtcNow.ToString('o')
-        resolvedComponents = $Plan._resolvedComponents
-        archetype = [pscustomobject]@{
-            type = $Spec.archetype.type
-            variant = (Get-PropValue $Spec.archetype 'variant')
-        }
-    }
+    $specHashValue = Get-SpecHash -Path $SpecPath
+    $resolvedComponents = @($Plan._resolvedComponents)
+    $variantValue = (Get-PropValue $Spec.archetype 'variant')
+    $manifest = @{}
+    $manifest['specHash'] = $specHashValue
+    $manifest['toolVersion'] = $ToolVersion
+    $manifest['generatedFiles'] = $generated.ToArray()
+    $manifest['timestamp'] = [DateTimeOffset]::UtcNow.ToString('o')
+    $manifest['resolvedComponents'] = $resolvedComponents
+    $manifest['archetype'] = @{ type = $Spec.archetype.type; variant = $variantValue }
+
     [IO.File]::WriteAllText((Join-Path $manifestDir 'manifest.json'), ($manifest | ConvertTo-Json -Depth 20))
 }
 
 try {
-    $opts = Parse-Args -Args $args
+    $cliArgs = Get-CLIArgs -ScriptArgs $CliArgs -Invocation $MyInvocation
+    $opts = Parse-Args -InputArgs $cliArgs
 
     if ($opts.Help -or $opts.Command -eq 'help') {
         Write-Output (Get-Usage)
