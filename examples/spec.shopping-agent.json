@@ -1,0 +1,10 @@
+{
+  "specVersion": "1.0",
+  "repo": { "name": "shopping-agent" },
+  "archetype": {
+    "type": "agent",
+    "variant": "python-shopping",
+    "components": ["base-agent"]
+  },
+  "params": {}
+}

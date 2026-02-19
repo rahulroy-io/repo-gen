@@ -5,6 +5,7 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $spec = Join-Path $repoRoot 'examples/spec.example.json'
+$shoppingSpec = Join-Path $repoRoot 'examples/spec.shopping-agent.json'
 
 # 1) plan mode creates no files; returns 0 when no conflicts
 $t1 = New-TestDir
@@ -57,5 +58,19 @@ New-Item -ItemType Directory -Path $out7 | Out-Null
 Set-Content -Path (Join-Path $out7 'README.md') -Value 'existing'
 $r7 = Invoke-Repogen @('apply', '--spec', $spec, '--output', $out7, '--yes', '--allow-existing-root', '--on-conflict', 'overwrite')
 Assert-Equal $r7.ExitCode 2 'overwrite without force exits 2'
+
+# 8) shopping-agent archetype generates expected layout
+$t8 = New-TestDir
+$out8 = Join-Path $t8 'shopping-agent'
+$r8 = Invoke-Repogen @('apply', '--spec', $shoppingSpec, '--output', $out8, '--yes')
+Assert-Equal $r8.ExitCode 0 'shopping-agent apply exits 0'
+Assert-True (Test-Path -LiteralPath (Join-Path $out8 'README.md') -PathType Leaf) 'shopping-agent README generated'
+Assert-True (Test-Path -LiteralPath (Join-Path $out8 'pyproject.toml') -PathType Leaf) 'shopping-agent pyproject generated'
+Assert-True (Test-Path -LiteralPath (Join-Path $out8 '.gitignore') -PathType Leaf) 'shopping-agent gitignore generated'
+Assert-True (Test-Path -LiteralPath (Join-Path $out8 '.env.example') -PathType Leaf) 'shopping-agent env example generated'
+Assert-True (Test-Path -LiteralPath (Join-Path $out8 'src/agent_app/__init__.py') -PathType Leaf) 'shopping-agent __init__ generated'
+Assert-True (Test-Path -LiteralPath (Join-Path $out8 'src/agent_app/cli.py') -PathType Leaf) 'shopping-agent cli generated'
+Assert-True (Test-Path -LiteralPath (Join-Path $out8 'src/agent_app/core.py') -PathType Leaf) 'shopping-agent core generated'
+Assert-True (Test-Path -LiteralPath (Join-Path $out8 'tests/test_smoke.py') -PathType Leaf) 'shopping-agent smoke test generated'
 
 Complete-Tests

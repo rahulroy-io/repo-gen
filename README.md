@@ -17,6 +17,7 @@ pwsh ./repogen.ps1 --help
 pwsh ./repogen.ps1 validate --spec ./examples/spec.example.json
 pwsh ./repogen.ps1 plan --spec ./examples/spec.example.json --output ./out
 pwsh ./repogen.ps1 apply --spec ./examples/spec.example.json --output ./out --yes
+pwsh ./repogen.ps1 apply --spec ./examples/spec.shopping-agent.json --output ./shopping-agent --yes
 ```
 
 ## Commands
