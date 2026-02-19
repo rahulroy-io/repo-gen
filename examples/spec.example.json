@@ -1,0 +1,11 @@
+{
+  "specVersion": "1.0",
+  "repo": { "name": "orders-service" },
+  "archetype": {
+    "type": "service",
+    "variant": "python-fastapi",
+    "components": ["base", "ci.github-actions"],
+    "features": { "docker": true }
+  },
+  "params": { "servicePort": 8080 }
+}
